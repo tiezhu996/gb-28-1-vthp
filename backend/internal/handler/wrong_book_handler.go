@@ -102,7 +102,7 @@ func (h *WrongBookHandler) Get(c *gin.Context) {
 	Success(c, dto.ToWrongBookResponse(entry))
 }
 
-// List 分页查询错题本。
+// List 分页查询错题本（支持只看反复错题、按错误次数倒序）。
 func (h *WrongBookHandler) List(c *gin.Context) {
 	var query dto.WrongBookQuery
 	_ = c.ShouldBindQuery(&query)
@@ -116,8 +116,17 @@ func (h *WrongBookHandler) List(c *gin.Context) {
 	if query.KnowledgePoint != "" {
 		filter["knowledge_points"] = query.KnowledgePoint
 	}
+	if query.RepeatedOnly {
+		// 只看反复错题：错误次数大于 1
+		filter["wrong_count"] = bson.M{"$gt": 1}
+	}
+	// 排序：sort=wrong_count 时错误次数多的排在前面，其次按最近出错时间倒序
+	sort := bson.D{{Key: "created_at", Value: -1}}
+	if query.Sort == "wrong_count" {
+		sort = bson.D{{Key: "wrong_count", Value: -1}, {Key: "last_wrong_at", Value: -1}, {Key: "created_at", Value: -1}}
+	}
 	page := util.GetPageParams(c, 20)
-	list, total, err := h.svc.List(c.Request.Context(), middleware.GetUserID(c), filter, page.Page, page.PageSize)
+	list, total, err := h.svc.List(c.Request.Context(), middleware.GetUserID(c), filter, sort, page.Page, page.PageSize)
 	if err != nil {
 		Error(c, err)
 		return

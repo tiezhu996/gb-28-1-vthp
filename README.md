@@ -32,7 +32,7 @@ docker compose up -d --build
 4. **自动阅卷与评分**：客观题（单选/多选/判断）提交即自动判分；主观题（填空/简答）教师手动批改；系统汇总成绩生成成绩报告。
 5. **防作弊机制**：切屏/失焦/复制粘贴检测并记录次数与事件；支持随机打乱题目顺序与选项顺序；禁止复制粘贴。
 6. **成绩分析**：平均分、最高分、最低分、及格率、分数段直方图、每题正确率。
-7. **错题回顾**：查看答卷与正确答案对照，错题一键加入错题本，按知识点归类复习。
+7. **错题回顾**：交卷时自动收录客观错题——首次收录保留试卷答案解析；同一题再次答错时改存最近一次试卷、作答与交卷时间，错误次数 +1、状态回到未掌握，原备注与首次收录时间保留。复习页展示错误次数与最近出错时间，支持只看反复错题、按错误次数倒序，也可手动加入/标记已掌握/移除。
 
 ## 技术栈
 
@@ -160,20 +160,20 @@ npm run dev                  # http://localhost:3000，/api 已代理到 localho
 | DELETE | /exams/:id | 教师/管理员 | 删除试卷 |
 | POST | /exam-records/:examId/start | 学生 | 开始考试（随机题序/选项） |
 | GET | /exam-records/mine | 学生 | 我的考试记录 |
-| POST | /exam-records/:id/submit | 学生 | 提交答卷（客观题自动判分） |
+| POST | /exam-records/:id/submit | 学生 | 提交答卷（客观题自动判分 + 自动收录客观错题） |
 | GET | /exam-records/:id | 登录 | 答卷详情 |
 | GET | /exams/:examId/records | 教师/管理员 | 某考试全部答卷 |
 | POST | /exam-records/:id/grade | 教师/管理员 | 主观题批改 |
 | POST | /exam-records/:id/auto-submit | 教师/管理员 | 超时自动提交 |
 | GET | /exams/:examId/report | 教师/管理员 | 成绩分析报告 |
-| GET | /wrong-books | 学生 | 错题本分页 |
+| GET | /wrong-books | 学生 | 错题本分页（`repeated_only=true` 只看反复错题，`sort=wrong_count` 按错误次数倒序） |
 | POST | /wrong-books | 学生 | 加入错题本 |
 | GET | /wrong-books/:id | 学生 | 错题详情 |
 | PUT | /wrong-books/:id | 学生 | 更新错题（标记已掌握） |
 | DELETE | /wrong-books/:id | 学生 | 移除错题 |
 | GET | /audit-logs | 管理员 | 操作审计日志 |
 
-> 复用关系：`PUT /exams/:id` 与 `POST /exams/:id/publish` 复用 `ExamService.applyStatusTransition`；`POST /questions` 与 `POST /questions/import` 复用 `QuestionService.buildQuestionFromRow/validateQuestion`；`POST /exam-records/:id/submit` 与 `POST /exam-records/:id/auto-submit` 复用 `ExamRecordService.Submit/gradeObjective`。
+> 复用关系：`PUT /exams/:id` 与 `POST /exams/:id/publish` 复用 `ExamService.applyStatusTransition`；`POST /questions` 与 `POST /questions/import` 复用 `QuestionService.buildQuestionFromRow/validateQuestion`；`POST /exam-records/:id/submit` 与 `POST /exam-records/:id/auto-submit` 复用 `ExamRecordService.Submit/gradeObjective`，并统一回调 `WrongBookService.CollectFromRecord` 自动收录客观错题。
 
 ### curl 调用示例（含 JWT）
 

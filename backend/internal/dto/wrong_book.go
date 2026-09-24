@@ -20,11 +20,13 @@ type UpdateWrongBookRequest struct {
 	Note   string `json:"note" binding:"omitempty,max=500"`
 }
 
-// WrongBookQuery 错题本查询参数。
+// WrongBookQuery 错题本查询参数（repeated_only=true 只看反复错题；sort=wrong_count 按错误次数倒序）。
 type WrongBookQuery struct {
 	Subject        string `form:"subject"`
 	KnowledgePoint string `form:"knowledge_point"`
 	Status         string `form:"status"`
+	RepeatedOnly   bool   `form:"repeated_only"`
+	Sort           string `form:"sort"`
 	Page           int64  `form:"page"`
 	PageSize       int64  `form:"page_size"`
 }
@@ -44,6 +46,8 @@ type WrongBookResponse struct {
 	Analysis        string    `json:"analysis"`
 	Note            string    `json:"note"`
 	Status          string    `json:"status"`
+	WrongCount      int       `json:"wrong_count"`
+	LastWrongAt     time.Time `json:"last_wrong_at"`
 	CreatedAt       time.Time `json:"created_at"`
 }
 
@@ -63,6 +67,8 @@ func ToWrongBookResponse(w *model.WrongBook) WrongBookResponse {
 		Analysis:        w.Analysis,
 		Note:            w.Note,
 		Status:          w.Status,
+		WrongCount:      w.WrongCount,
+		LastWrongAt:     w.LastWrongAt,
 		CreatedAt:       w.CreatedAt,
 	}
 }

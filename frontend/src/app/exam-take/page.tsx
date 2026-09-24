@@ -6,6 +6,7 @@ import { recordApi, type AnswerInput } from '@/api/record';
 import { examApi } from '@/api/exam';
 import { QuestionTypeBadge } from '@/components/StatusBadge';
 import { questionTypeText } from '@/utils/format';
+import { ANSWER_RESULT, QUESTION_TYPES } from '@/constants';
 import type { Exam, ExamRecord } from '@/types';
 
 function ExamTake() {
@@ -108,8 +109,14 @@ function ExamTake() {
       setSubmitting(true);
       try {
         const ansList: AnswerInput[] = Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer }));
-        await recordApi.submit(record.id, ansList, cheatRef.current, eventsRef.current);
-        alert(auto ? '考试时间到，答卷已自动提交' : '答卷提交成功，客观题已自动评分');
+        const res = await recordApi.submit(record.id, ansList, cheatRef.current, eventsRef.current);
+        // 交卷后后端自动收录客观错题，这里统计并提示
+        const objectiveTypes: string[] = [QUESTION_TYPES.SINGLE, QUESTION_TYPES.MULTIPLE, QUESTION_TYPES.JUDGE];
+        const wrongCount = res.questions.filter(
+          (q) => objectiveTypes.includes(q.type) && q.result === ANSWER_RESULT.WRONG,
+        ).length;
+        const collectTip = wrongCount > 0 ? `，已自动收录 ${wrongCount} 道客观错题到错题本` : '';
+        alert(auto ? `考试时间到，答卷已自动提交${collectTip}` : `答卷提交成功，客观题已自动评分${collectTip}`);
         router.push('/records');
       } catch (err) {
         alert((err as Error).message);

@@ -119,6 +119,8 @@ export interface WrongBook {
   analysis: string;
   note: string;
   status: string;
+  wrong_count: number;
+  last_wrong_at: string;
   created_at: string;
 }
 

@@ -65,6 +65,8 @@ func (s *WrongBookService) Add(ctx context.Context, studentID, questionID, examI
 		Analysis:        q.Analysis,
 		Note:            note,
 		Status:          constants.WrongBookStatusActive,
+		WrongCount:      1,
+		LastWrongAt:     now,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
@@ -72,6 +74,88 @@ func (s *WrongBookService) Add(ctx context.Context, studentID, questionID, examI
 		return nil, fmt.Errorf("wrong book service add: %w", err)
 	}
 	s.logger.Info(constants.LogWrongBookAdded, "student", studentID.Hex(), "question_id", questionID.Hex())
+	return entry, nil
+}
+
+// CollectFromRecord 交卷后自动收录客观错题（由 ExamRecordService.Submit 回调）。
+// 首次收录保留试卷答案解析；再次答错改存最近一次试卷、作答与交卷时间，
+// 错误次数加一、状态回到未掌握，原先备注与首次收录时间保留。
+// 收录失败不阻断交卷，仅记录告警日志。
+func (s *WrongBookService) CollectFromRecord(ctx context.Context, rec *model.ExamRecord) {
+	collected := 0
+	for i := range rec.Questions {
+		q := &rec.Questions[i]
+		if !constants.IsObjectiveQuestion(q.Type) || q.Result != constants.AnswerResultWrong {
+			continue
+		}
+		if _, err := s.upsertFromAttempt(ctx, rec, q); err != nil {
+			s.logger.Warn("错题自动收录失败", "record_id", rec.ID.Hex(), "question_id", q.QuestionID.Hex(), "error", err.Error())
+			continue
+		}
+		collected++
+	}
+	if collected > 0 {
+		s.logger.Info(constants.LogWrongBookAutoCollect, "record_id", rec.ID.Hex(), "student", rec.StudentName, "count", collected)
+	}
+}
+
+// upsertFromAttempt 按学生+题目幂等收录错题（CollectFromRecord 内部复用）。
+func (s *WrongBookService) upsertFromAttempt(ctx context.Context, rec *model.ExamRecord, q *model.AttemptQuestion) (*model.WrongBook, error) {
+	now := time.Now()
+	lastWrongAt := now
+	if rec.SubmittedAt != nil {
+		lastWrongAt = *rec.SubmittedAt
+	}
+	existing, err := s.repo.FindByStudentAndQuestion(ctx, rec.StudentID, q.QuestionID)
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return nil, fmt.Errorf("wrong book service collect find: %w", err)
+	}
+	if existing != nil {
+		// 再次答错：改存最近一次试卷、作答与交卷时间；错误次数加一；状态回到未掌握；
+		// 原先备注、首次收录时间与首次收录的解析保持不变。
+		existing.ExamID = rec.ExamID
+		existing.ExamRecordID = rec.ID
+		existing.MyAnswer = q.UserAnswer
+		if existing.WrongCount < 1 {
+			existing.WrongCount = 1
+		}
+		existing.WrongCount++
+		existing.Status = constants.WrongBookStatusActive
+		existing.LastWrongAt = lastWrongAt
+		existing.UpdatedAt = now
+		if err := s.repo.Update(ctx, existing); err != nil {
+			return nil, fmt.Errorf("wrong book service collect update: %w", err)
+		}
+		s.logger.Info(constants.LogWrongBookRepeated, "student", rec.StudentID.Hex(), "question_id", q.QuestionID.Hex(), "wrong_count", existing.WrongCount)
+		return existing, nil
+	}
+	// 首次收录：保留试卷答案解析（题库中的解析快照）。
+	question, err := s.question.GetByID(ctx, q.QuestionID)
+	if err != nil {
+		return nil, err
+	}
+	entry := &model.WrongBook{
+		ID:              primitive.NewObjectID(),
+		StudentID:       rec.StudentID,
+		QuestionID:      q.QuestionID,
+		ExamID:          rec.ExamID,
+		ExamRecordID:    rec.ID,
+		Subject:         q.Subject,
+		KnowledgePoints: q.KnowledgePoints,
+		QuestionContent: q.Content,
+		MyAnswer:        q.UserAnswer,
+		CorrectAnswer:   q.CorrectAnswer,
+		Analysis:        question.Analysis,
+		Status:          constants.WrongBookStatusActive,
+		WrongCount:      1,
+		LastWrongAt:     lastWrongAt,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := s.repo.Create(ctx, entry); err != nil {
+		return nil, fmt.Errorf("wrong book service collect create: %w", err)
+	}
+	s.logger.Info(constants.LogWrongBookAdded, "student", rec.StudentID.Hex(), "question_id", q.QuestionID.Hex())
 	return entry, nil
 }
 
@@ -124,10 +208,10 @@ func (s *WrongBookService) Delete(ctx context.Context, id, studentID primitive.O
 	return nil
 }
 
-// List 分页查询学生错题本。
-func (s *WrongBookService) List(ctx context.Context, studentID primitive.ObjectID, filter bson.M, page, pageSize int64) ([]*model.WrongBook, int64, error) {
+// List 分页查询学生错题本（sort 由 handler 根据查询参数构造，如按错误次数倒序）。
+func (s *WrongBookService) List(ctx context.Context, studentID primitive.ObjectID, filter bson.M, sort bson.D, page, pageSize int64) ([]*model.WrongBook, int64, error) {
 	filter["student_id"] = studentID
-	list, total, err := s.repo.List(ctx, filter, page, pageSize)
+	list, total, err := s.repo.List(ctx, filter, sort, page, pageSize)
 	if err != nil {
 		return nil, 0, fmt.Errorf("wrong book service list: %w", err)
 	}

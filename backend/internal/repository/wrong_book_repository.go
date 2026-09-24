@@ -20,7 +20,7 @@ type WrongBookRepository interface {
 	Delete(ctx context.Context, id primitive.ObjectID) error
 	FindByID(ctx context.Context, id primitive.ObjectID) (*model.WrongBook, error)
 	FindByStudentAndQuestion(ctx context.Context, studentID, questionID primitive.ObjectID) (*model.WrongBook, error)
-	List(ctx context.Context, filter bson.M, page, pageSize int64) ([]*model.WrongBook, int64, error)
+	List(ctx context.Context, filter bson.M, sort bson.D, page, pageSize int64) ([]*model.WrongBook, int64, error)
 }
 
 // MongoWrongBookRepository MongoDB 错题本仓储实现。
@@ -86,15 +86,18 @@ func (r *MongoWrongBookRepository) FindByStudentAndQuestion(ctx context.Context,
 	return &w, nil
 }
 
-func (r *MongoWrongBookRepository) List(ctx context.Context, filter bson.M, page, pageSize int64) ([]*model.WrongBook, int64, error) {
+func (r *MongoWrongBookRepository) List(ctx context.Context, filter bson.M, sort bson.D, page, pageSize int64) ([]*model.WrongBook, int64, error) {
 	total, err := r.coll.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("count wrong books: %w", err)
 	}
+	if len(sort) == 0 {
+		sort = bson.D{{Key: "created_at", Value: -1}}
+	}
 	opts := options.Find().
 		SetSkip((page - 1) * pageSize).
 		SetLimit(pageSize).
-		SetSort(bson.M{"created_at": -1})
+		SetSort(sort)
 	cur, err := r.coll.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list wrong books: %w", err)

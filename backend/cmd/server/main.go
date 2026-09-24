@@ -67,6 +67,7 @@ func main() {
 	examSvc := service.NewExamService(examRepo, questionSvc, util.Logger)
 	recordSvc := service.NewExamRecordService(recordRepo, examSvc, util.Logger)
 	wrongBookSvc := service.NewWrongBookService(wrongBookRepo, questionSvc, recordSvc, util.Logger)
+	recordSvc.SetWrongBookCollector(wrongBookSvc) // 交卷后自动收录客观错题
 	auditSvc := service.NewAuditService(auditRepo, util.Logger)
 
 	if cfg.SeedEnabled {

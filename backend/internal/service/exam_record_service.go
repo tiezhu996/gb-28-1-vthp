@@ -19,16 +19,28 @@ import (
 	"github.com/onlineexam/onlineexam/internal/util"
 )
 
+// WrongBookCollector 错题自动收录接口：交卷后由考试记录服务回调，
+// 由 WrongBookService 实现（setter 注入，避免与 WrongBookService 的构造环）。
+type WrongBookCollector interface {
+	CollectFromRecord(ctx context.Context, rec *model.ExamRecord)
+}
+
 // ExamRecordService 考试记录服务：开始考试、提交/自动提交、阅卷、成绩分析。
 type ExamRecordService struct {
-	repo   repository.ExamRecordRepository
-	exam   *ExamService // 复用试卷服务（校验考试窗口）
-	logger *slog.Logger
+	repo      repository.ExamRecordRepository
+	exam      *ExamService // 复用试卷服务（校验考试窗口）
+	collector WrongBookCollector // 交卷后自动收录客观错题（可选）
+	logger    *slog.Logger
 }
 
 // NewExamRecordService 构造考试记录服务。
 func NewExamRecordService(repo repository.ExamRecordRepository, exam *ExamService, logger *slog.Logger) *ExamRecordService {
 	return &ExamRecordService{repo: repo, exam: exam, logger: logger}
+}
+
+// SetWrongBookCollector 注入错题自动收录器（在 main 中装配，解决构造环）。
+func (s *ExamRecordService) SetWrongBookCollector(c WrongBookCollector) {
+	s.collector = c
 }
 
 // StartExam 学生开始考试：校验时间窗口、生成随机题序/选项快照。
@@ -191,6 +203,10 @@ func (s *ExamRecordService) Submit(ctx context.Context, recordID primitive.Objec
 		s.logger.Info(constants.LogRecordAutoSubmit, "record_id", rec.ID.Hex(), "exam_id", rec.ExamID.Hex(), "student", rec.StudentName)
 	} else {
 		s.logger.Info(constants.LogRecordSubmitted, "record_id", rec.ID.Hex(), "status", rec.Status, "objective_score", rec.ObjectiveScore, "student", rec.StudentName)
+	}
+	// 交卷后自动收录客观错题（首次收录保留解析，再次答错累加错误次数）
+	if s.collector != nil {
+		s.collector.CollectFromRecord(ctx, rec)
 	}
 	return rec, nil
 }

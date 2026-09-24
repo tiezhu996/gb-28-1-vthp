@@ -43,8 +43,10 @@ const (
 	LogRecordCheat      = "检测到切屏行为 record_id=%s cheat_count=%d student=%s"
 
 	// 错题本模块
-	LogWrongBookAdded    = "错题加入错题本 student=%s question_id=%s"
-	LogWrongBookResolved = "错题标记为已掌握 student=%s question_id=%s"
+	LogWrongBookAdded       = "错题加入错题本 student=%s question_id=%s"
+	LogWrongBookResolved    = "错题标记为已掌握 student=%s question_id=%s"
+	LogWrongBookRepeated    = "错题再次答错收录 student=%s question_id=%s wrong_count=%d"
+	LogWrongBookAutoCollect = "交卷自动收录客观错题 record_id=%s student=%s count=%d"
 
 	// 审计模块
 	LogAuditCreated = "审计日志写入成功 module=%s action=%s user=%s"
