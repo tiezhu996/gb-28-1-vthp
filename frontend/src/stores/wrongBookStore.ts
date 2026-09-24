@@ -7,7 +7,7 @@ interface WrongBookState {
   list: WrongBook[];
   total: number;
   loading: boolean;
-  fetch: (query: { subject?: string; knowledge_point?: string; status?: string; page?: number; page_size?: number }) => Promise<void>;
+  fetch: (query: { subject?: string; knowledge_point?: string; status?: string; repeat?: boolean; page?: number; page_size?: number }) => Promise<void>;
   add: (data: { question_id: string; exam_id?: string; exam_record_id?: string; note?: string }) => Promise<WrongBook>;
   update: (id: string, data: { status?: string; note?: string }) => Promise<WrongBook>;
   remove: (id: string) => Promise<void>;

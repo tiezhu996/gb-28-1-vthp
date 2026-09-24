@@ -68,7 +68,7 @@ export async function upload<T>(path: string, file: File, extra: Record<string, 
   return handle<T>(res);
 }
 
-export function buildQuery(params: Record<string, string | number | undefined>): string {
+export function buildQuery(params: Record<string, string | number | boolean | undefined>): string {
   const qs = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== '') qs.append(k, String(v));

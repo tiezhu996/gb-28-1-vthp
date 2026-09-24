@@ -32,7 +32,7 @@ docker compose up -d --build
 4. **自动阅卷与评分**：客观题（单选/多选/判断）提交即自动判分；主观题（填空/简答）教师手动批改；系统汇总成绩生成成绩报告。
 5. **防作弊机制**：切屏/失焦/复制粘贴检测并记录次数与事件；支持随机打乱题目顺序与选项顺序；禁止复制粘贴。
 6. **成绩分析**：平均分、最高分、最低分、及格率、分数段直方图、每题正确率。
-7. **错题回顾**：查看答卷与正确答案对照，错题一键加入错题本，按知识点归类复习。
+7. **错题回顾**：交卷时自动收录客观错题（单选/多选/判断）；首次收录保留试卷作答与解析，再次答错更新最近试卷、作答与交卷时间、错误次数加一、状态回到未掌握（备注与首次收录时间保留）；复习页显示错误次数与最近出错时间，支持只看反复错题（错误次数 ≥ 2），按错误次数从多到少排序。
 
 ## 技术栈
 
@@ -166,8 +166,8 @@ npm run dev                  # http://localhost:3000，/api 已代理到 localho
 | POST | /exam-records/:id/grade | 教师/管理员 | 主观题批改 |
 | POST | /exam-records/:id/auto-submit | 教师/管理员 | 超时自动提交 |
 | GET | /exams/:examId/report | 教师/管理员 | 成绩分析报告 |
-| GET | /wrong-books | 学生 | 错题本分页 |
-| POST | /wrong-books | 学生 | 加入错题本 |
+| GET | /wrong-books | 学生 | 错题本分页（支持 `repeat=true` 只看反复错题，按错误次数倒序） |
+| POST | /wrong-books | 学生 | 手动加入错题本（交卷时客观错题已自动收录） |
 | GET | /wrong-books/:id | 学生 | 错题详情 |
 | PUT | /wrong-books/:id | 学生 | 更新错题（标记已掌握） |
 | DELETE | /wrong-books/:id | 学生 | 移除错题 |
@@ -248,6 +248,8 @@ curl -sS http://localhost:3003/healthz
 ### 7. 错题本状态 WrongBookStatus（active / resolved）
 后端：`internal/constants/enums.go`、`internal/model/wrong_book.go`、`internal/dto/wrong_book.go`、`internal/service/wrong_book_service.go`、`internal/handler/wrong_book_handler.go`、`internal/constants/log_templates.go`、`internal/util/formatters.go`。
 前端：`src/constants/index.ts`、`src/app/wrongbook/page.tsx`。
+
+错题条目额外包含 `wrong_count`（累计错误次数，首次收录为 1）与 `last_wrong_at`（最近出错/交卷时间）。交卷（含超时自动提交）由 `ExamRecordService.Submit` 通过 `WrongQuestionCollector` 接口回调 `WrongBookService.CollectFromRecord` 自动收录客观错题：首次收录保留试卷、作答与解析；再次答错只刷新最近试卷（`exam_id/exam_record_id`）、作答（`my_answer`）与 `last_wrong_at`，`wrong_count` 加一、状态重置为 active，`note` 与 `created_at`（首次收录时间）不变。列表默认按 `wrong_count`、`last_wrong_at` 倒序，`repeat=true` 时仅返回 `wrong_count >= 2` 的反复错题。
 
 ## 屎山代码设计要求（跨文件协同改动能力验证）
 

@@ -94,7 +94,7 @@ func (r *MongoWrongBookRepository) List(ctx context.Context, filter bson.M, page
 	opts := options.Find().
 		SetSkip((page - 1) * pageSize).
 		SetLimit(pageSize).
-		SetSort(bson.M{"created_at": -1})
+		SetSort(bson.D{{Key: "wrong_count", Value: -1}, {Key: "last_wrong_at", Value: -1}, {Key: "created_at", Value: -1}})
 	cur, err := r.coll.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list wrong books: %w", err)

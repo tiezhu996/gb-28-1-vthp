@@ -21,9 +21,22 @@ import (
 
 // ExamRecordService 考试记录服务：开始考试、提交/自动提交、阅卷、成绩分析。
 type ExamRecordService struct {
-	repo   repository.ExamRecordRepository
-	exam   *ExamService // 复用试卷服务（校验考试窗口）
-	logger *slog.Logger
+	repo              repository.ExamRecordRepository
+	exam              *ExamService // 复用试卷服务（校验考试窗口）
+	wrongCollector    WrongQuestionCollector
+	logger            *slog.Logger
+}
+
+// WrongQuestionCollector 交卷后自动收录客观错题的能力（由错题本服务实现，
+// 在 main 中注入，避免 service 包内循环依赖）。
+type WrongQuestionCollector interface {
+	// CollectFromRecord 从已交卷答卷中收录全部客观错题。
+	CollectFromRecord(ctx context.Context, rec *model.ExamRecord) error
+}
+
+// SetWrongQuestionCollector 注入错题收录器（构造后装配，打破循环依赖）。
+func (s *ExamRecordService) SetWrongQuestionCollector(c WrongQuestionCollector) {
+	s.wrongCollector = c
 }
 
 // NewExamRecordService 构造考试记录服务。
@@ -186,6 +199,12 @@ func (s *ExamRecordService) Submit(ctx context.Context, recordID primitive.Objec
 	rec.UpdatedAt = now
 	if err := s.repo.Update(ctx, rec); err != nil {
 		return nil, fmt.Errorf("exam record service submit: %w", err)
+	}
+	// 交卷后自动收录客观错题（含超时自动提交）。收录失败不阻断交卷。
+	if s.wrongCollector != nil {
+		if err := s.wrongCollector.CollectFromRecord(ctx, rec); err != nil {
+			s.logger.Warn("交卷后自动收录错题失败", "record_id", rec.ID.Hex(), "student", rec.StudentName, "error", err.Error())
+		}
 	}
 	if auto {
 		s.logger.Info(constants.LogRecordAutoSubmit, "record_id", rec.ID.Hex(), "exam_id", rec.ExamID.Hex(), "student", rec.StudentName)

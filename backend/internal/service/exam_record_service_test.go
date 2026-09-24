@@ -74,6 +74,52 @@ func newTestRecordSvc() *ExamRecordService {
 	return NewExamRecordService(recordRepo, examSvc, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
+// fakeWrongCollector 记录交卷后被自动收录的答卷。
+type fakeWrongCollector struct {
+	calls int
+	last  *model.ExamRecord
+	err   error
+}
+
+func (f *fakeWrongCollector) CollectFromRecord(_ context.Context, rec *model.ExamRecord) error {
+	f.calls++
+	f.last = rec
+	return f.err
+}
+
+func TestSubmitAutoCollectsWrongQuestions(t *testing.T) {
+	svc := newTestRecordSvc()
+	collector := &fakeWrongCollector{}
+	svc.SetWrongQuestionCollector(collector)
+
+	teacher := primitive.NewObjectID()
+	student := primitive.NewObjectID()
+	q1, _ := svc.exam.question.Create(context.Background(), &dto.CreateQuestionRequest{
+		Type: "single", Subject: "数学", KnowledgePoints: []string{"代数"},
+		Difficulty: "easy", Content: "1+1=?", Answer: "B", Score: 5,
+		Options: []dto.OptionInput{{Key: "A", Text: "1"}, {Key: "B", Text: "2"}},
+	}, teacher)
+	now := time.Now()
+	exam, _ := svc.exam.Create(context.Background(), &dto.CreateExamRequest{
+		Title: "自动收录卷", Subject: "数学", DurationMin: 30, PassScore: 60,
+		StartAt: now.Add(-time.Hour), EndAt: now.Add(time.Hour),
+		Questions: []dto.ExamQuestionInput{{QuestionID: q1.ID.Hex()}},
+	}, teacher)
+	_, _ = svc.exam.Publish(context.Background(), exam.ID, "t@example.com")
+
+	rec, err := svc.StartExam(context.Background(), exam.ID, student, "李同学")
+	if err != nil {
+		t.Fatalf("StartExam() error = %v", err)
+	}
+	// 答错客观题并交卷
+	if _, err := svc.Submit(context.Background(), rec.ID, []dto.AnswerInput{{QuestionID: q1.ID.Hex(), Answer: "A"}}, 0, nil, false); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	if collector.calls != 1 || collector.last == nil || collector.last.ID != rec.ID {
+		t.Fatalf("交卷后未自动收录错题: calls=%d", collector.calls)
+	}
+}
+
 func TestStartAndSubmit(t *testing.T) {
 	svc := newTestRecordSvc()
 	teacher := primitive.NewObjectID()

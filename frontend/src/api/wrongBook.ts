@@ -2,7 +2,7 @@ import { request, buildQuery } from '@/utils/request';
 import type { PageResult, WrongBook } from '@/types';
 
 export const wrongBookApi = {
-  list(query: { subject?: string; knowledge_point?: string; status?: string; page?: number; page_size?: number }) {
+  list(query: { subject?: string; knowledge_point?: string; status?: string; repeat?: boolean; page?: number; page_size?: number }) {
     return request<PageResult<WrongBook>>(`/wrong-books${buildQuery({ ...query })}`);
   },
   add(data: { question_id: string; exam_id?: string; exam_record_id?: string; note?: string }) {

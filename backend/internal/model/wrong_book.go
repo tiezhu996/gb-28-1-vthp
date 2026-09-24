@@ -22,6 +22,8 @@ type WrongBook struct {
 	Analysis        string             `bson:"analysis" json:"analysis"`
 	Note            string             `bson:"note" json:"note"`
 	Status          string             `bson:"status" json:"status"`
-	CreatedAt       time.Time          `bson:"created_at" json:"created_at"`
+	WrongCount      int                `bson:"wrong_count" json:"wrong_count"`     // 累计答错次数（首次收录为 1）
+	LastWrongAt     time.Time          `bson:"last_wrong_at" json:"last_wrong_at"` // 最近一次答错（交卷）时间
+	CreatedAt       time.Time          `bson:"created_at" json:"created_at"`       // 首次收录时间，再次答错也不变
 	UpdatedAt       time.Time          `bson:"updated_at" json:"updated_at"`
 }

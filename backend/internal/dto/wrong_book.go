@@ -25,6 +25,7 @@ type WrongBookQuery struct {
 	Subject        string `form:"subject"`
 	KnowledgePoint string `form:"knowledge_point"`
 	Status         string `form:"status"`
+	Repeat         bool   `form:"repeat"` // true 时只看反复错题（错误次数 ≥ 2）
 	Page           int64  `form:"page"`
 	PageSize       int64  `form:"page_size"`
 }
@@ -44,6 +45,8 @@ type WrongBookResponse struct {
 	Analysis        string    `json:"analysis"`
 	Note            string    `json:"note"`
 	Status          string    `json:"status"`
+	WrongCount      int       `json:"wrong_count"`
+	LastWrongAt     time.Time `json:"last_wrong_at"`
 	CreatedAt       time.Time `json:"created_at"`
 }
 
@@ -63,6 +66,8 @@ func ToWrongBookResponse(w *model.WrongBook) WrongBookResponse {
 		Analysis:        w.Analysis,
 		Note:            w.Note,
 		Status:          w.Status,
+		WrongCount:      w.WrongCount,
+		LastWrongAt:     w.LastWrongAt,
 		CreatedAt:       w.CreatedAt,
 	}
 }

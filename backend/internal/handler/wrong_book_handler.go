@@ -116,6 +116,9 @@ func (h *WrongBookHandler) List(c *gin.Context) {
 	if query.KnowledgePoint != "" {
 		filter["knowledge_points"] = query.KnowledgePoint
 	}
+	if query.Repeat {
+		filter["wrong_count"] = bson.M{"$gte": 2}
+	}
 	page := util.GetPageParams(c, 20)
 	list, total, err := h.svc.List(c.Request.Context(), middleware.GetUserID(c), filter, page.Page, page.PageSize)
 	if err != nil {
